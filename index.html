@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geo Wave - Wave Mode</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 50%, #0a1a2e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        .game-container {
+            position: relative;
+            width: 900px;
+            height: 600px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 
+                0 0 50px rgba(0, 255, 255, 0.3),
+                0 0 100px rgba(255, 0, 255, 0.2),
+                inset 0 0 50px rgba(0, 0, 0, 0.5);
+            border: 3px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #0a0a1a;
+        }
+
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .score-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+        }
+
+        .progress-bar {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00ffff, #ff00ff, #ffff00);
+            border-radius: 4px;
+            transition: width 0.1s ease;
+        }
+
+        .menu-screen, .game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(10, 10, 26, 0.95);
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        .menu-screen.hidden, .game-over-screen.hidden {
+            display: none;
+        }
+
+        .game-title {
+            font-size: 64px;
+            font-weight: bold;
+            background: linear-gradient(90deg, #00ffff, #ff00ff, #ffff00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: none;
+            margin-bottom: 10px;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                filter: drop-shadow(0 0 20px rgba(0, 255, 255, 0.8));
+            }
+            to {
+                filter: drop-shadow(0 0 40px rgba(255, 0, 255, 0.8));
+            }
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 20px;
+            margin-bottom: 40px;
+        }
+
+        .play-btn, .retry-btn {
+            padding: 15px 60px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #fff;
+            background: linear-gradient(135deg, #00aaff, #ff00aa);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0, 170, 255, 0.4);
+            pointer-events: auto;
+        }
+
+        .play-btn:hover, .retry-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 15px 40px rgba(255, 0, 170, 0.5);
+        }
+
+        .instructions {
+            margin-top: 30px;
+            color: #666;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .instructions span {
+            color: #00ffff;
+        }
+
+        .game-over-title {
+            font-size: 48px;
+            color: #ff4444;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(255, 68, 68, 0.5);
+        }
+
+        .final-score {
+            font-size: 32px;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+
+        .best-score {
+            font-size: 20px;
+            color: #ffff00;
+            margin-bottom: 30px;
+        }
+
+        .attempt-count {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #888;
+            font-size: 16px;
+        }
+
+        .speed-indicator {
+            position: absolute;
+            top: 50px;
+            left: 20px;
+            color: #00ffff;
+            font-size: 14px;
+        }
+        .fullscreen-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+            pointer-events: auto;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+        }
+
+        .fullscreen-btn:hover {
+            transform: scale(1.05);
+            background: rgba(255,255,255,0.09);
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="900" height="600"></canvas>
+        
+        <div class="ui-overlay">
+            <div class="score-display">
+                <span id="score">0%</span>
+            </div>
+            <button id="fullscreenBtn" class="fullscreen-btn" title="Toggle Fullscreen">⤢</button>
+            <div class="attempt-count">
+                Attempt: <span id="attempt">1</span>
+            </div>
+            <div class="speed-indicator">
+                Speed: <span id="speed">1.0x</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <div class="menu-screen" id="menuScreen">
+            <h1 class="game-title">GEO WAVE</h1>
+            <p class="subtitle">Wave Mode Challenge</p>
+            <button class="play-btn" id="playBtn">PLAY</button>
+            <div class="instructions">
+                <p>Hold <span>SPACE</span> or <span>CLICK</span> to fly up</p>
+                <p>Release to fly down</p>
+                <p>Avoid the obstacles!</p>
+            </div>
+        </div>
+
+        <div class="game-over-screen hidden" id="gameOverScreen">
+            <h1 class="game-over-title">CRASH!</h1>
+            <p class="final-score">Progress: <span id="finalScore">0%</span></p>
+            <p class="best-score">Best: <span id="bestScore">0%</span></p>
+            <button class="retry-btn" id="retryBtn">RETRY</button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
