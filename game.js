@@ -29,7 +29,18 @@ const SAFE_GAP = 140; // minimum free vertical space
 const MIN_GAP_HEIGHT = 140;
 const MIN_MARGIN = 80; // clearance from ceiling/ground for moving parts
 const WAVE_TRAIL_LENGTH = 25;
-const LEVEL_LENGTH = 15000;
+const BASE_LEVEL_LENGTH = 15000;
+
+// Difficulty Settings
+const DIFFICULTY_CONFIG = {
+    easy: { targetPercent: 100, levelMultiplier: 1, label: 'EASY', color: '#00ff00' },
+    medium: { targetPercent: 250, levelMultiplier: 2.5, label: 'MEDIUM', color: '#ffff00' },
+    hard: { targetPercent: 500, levelMultiplier: 5, label: 'HARD', color: '#ff8800' },
+    infinite: { targetPercent: Infinity, levelMultiplier: 1, label: 'INFINITE', color: '#00ffff' },
+    impossible: { targetPercent: 1000, levelMultiplier: 10, label: 'IMPOSSIBLE', color: '#ff0000' }
+};
+let currentDifficulty = 'easy';
+let LEVEL_LENGTH = BASE_LEVEL_LENGTH;
 
 // Game State
 let gameState = 'menu';
@@ -900,8 +911,12 @@ function update(deltaTime) {
     distance += gameSpeed;
 
     // Gradually increase speed (stronger scaling as progress increases)
-    const progress = Math.min(1, distance / LEVEL_LENGTH);
-    gameSpeed = baseSpeed + Math.pow(progress, 0.9) * 6;
+    const config = DIFFICULTY_CONFIG[currentDifficulty];
+    const progress = config.targetPercent === Infinity 
+        ? Math.min(1, distance / (BASE_LEVEL_LENGTH * 5)) // Infinite mode caps speed scaling
+        : Math.min(1, distance / LEVEL_LENGTH);
+    const speedMultiplier = currentDifficulty === 'infinite' ? 8 : (currentDifficulty === 'impossible' ? 10 : 6);
+    gameSpeed = baseSpeed + Math.pow(progress, 0.9) * speedMultiplier;
     speedEl.textContent = (gameSpeed / baseSpeed).toFixed(2) + 'x';
 
     // Update player
@@ -962,14 +977,23 @@ function update(deltaTime) {
         ));
     }
 
-    // Update score
-    const score = Math.min(100, Math.floor((distance / LEVEL_LENGTH) * 100));
-    scoreDisplay.textContent = score + '%';
-    progressFill.style.width = score + '%';
-
-    // Check win condition
-    if (distance >= LEVEL_LENGTH) {
-        gameWin();
+    // Update score based on difficulty
+    const targetPercent = config.targetPercent;
+    const rawPercent = (distance / BASE_LEVEL_LENGTH) * 100;
+    
+    if (targetPercent === Infinity) {
+        // Infinite mode - just show current percent
+        scoreDisplay.textContent = Math.floor(rawPercent) + '%';
+        progressFill.style.width = Math.min(100, rawPercent) + '%';
+    } else {
+        const displayPercent = Math.min(targetPercent, Math.floor(rawPercent));
+        scoreDisplay.textContent = displayPercent + '%';
+        progressFill.style.width = Math.min(100, (rawPercent / targetPercent) * 100) + '%';
+        
+        // Check win condition
+        if (rawPercent >= targetPercent) {
+            gameWin();
+        }
     }
 }
 
@@ -1033,8 +1057,11 @@ function gameOver() {
     // Create death effect
     createDeathParticles(player.x, player.y);
     
-    // Calculate score
-    const score = Math.floor((distance / LEVEL_LENGTH) * 100);
+    // Calculate score based on difficulty
+    const rawPercent = (distance / BASE_LEVEL_LENGTH) * 100;
+    const config = DIFFICULTY_CONFIG[currentDifficulty];
+    const score = config.targetPercent === Infinity ? Math.floor(rawPercent) : Math.min(config.targetPercent, Math.floor(rawPercent));
+    
     if (score > bestScore) {
         bestScore = score;
     }
@@ -1050,13 +1077,14 @@ function gameOver() {
 
 function gameWin() {
     gameState = 'win';
-    bestScore = 100;
+    const config = DIFFICULTY_CONFIG[currentDifficulty];
+    bestScore = config.targetPercent;
     
     setTimeout(() => {
-        finalScoreEl.textContent = '100%';
-        bestScoreEl.textContent = '100%';
+        finalScoreEl.textContent = config.targetPercent + '%';
+        bestScoreEl.textContent = config.targetPercent + '%';
         document.querySelector('.game-over-title').textContent = 'VICTORY!';
-        document.querySelector('.game-over-title').style.color = '#00ff00';
+        document.querySelector('.game-over-title').style.color = config.color;
         gameOverScreen.classList.remove('hidden');
         attempt++;
     }, 500);
@@ -1122,6 +1150,17 @@ retryBtn.addEventListener('click', (e) => {
     document.querySelector('.game-over-title').textContent = 'CRASH!';
     document.querySelector('.game-over-title').style.color = '#ff4444';
     startGame();
+});
+
+// Main Menu button
+const menuBtn = document.getElementById('menuBtn');
+menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelector('.game-over-title').textContent = 'CRASH!';
+    document.querySelector('.game-over-title').style.color = '#ff4444';
+    gameOverScreen.classList.add('hidden');
+    menuScreen.classList.remove('hidden');
+    gameState = 'menu';
 });
 
 // ==================== Fullscreen & Resize Handling ====================
@@ -1196,7 +1235,46 @@ window.addEventListener('resize', () => {
     if (document.fullscreenElement) resizeCanvasForFullscreen();
 });
 
+// ==================== Difficulty Selection ====================
+const difficultyButtons = document.querySelectorAll('.diff-btn');
+const difficultyInfo = document.getElementById('difficultyInfo');
+
+function selectDifficulty(difficulty) {
+    currentDifficulty = difficulty;
+    const config = DIFFICULTY_CONFIG[difficulty];
+    
+    // Update LEVEL_LENGTH for obstacle generation
+    LEVEL_LENGTH = BASE_LEVEL_LENGTH * config.levelMultiplier;
+    
+    // Update button states
+    difficultyButtons.forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.difficulty === difficulty) {
+            btn.classList.add('active');
+        }
+    });
+    
+    // Update info text
+    if (config.targetPercent === Infinity) {
+        difficultyInfo.textContent = 'Goal: Survive as long as you can!';
+    } else {
+        difficultyInfo.textContent = 'Goal: ' + config.targetPercent + '%';
+    }
+    difficultyInfo.style.color = config.color;
+    
+    // Reset best score when changing difficulty
+    bestScore = 0;
+}
+
+difficultyButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectDifficulty(btn.dataset.difficulty);
+    });
+});
+
 // ==================== Initialize ====================
+selectDifficulty('easy'); // Set default difficulty
 resizeCanvasForFullscreen();
 initBackgroundStars();
 requestAnimationFrame(gameLoop);
