@@ -915,8 +915,9 @@ function update(deltaTime) {
     const progress = config.targetPercent === Infinity 
         ? Math.min(1, distance / (BASE_LEVEL_LENGTH * 5)) // Infinite mode caps speed scaling
         : Math.min(1, distance / LEVEL_LENGTH);
+    // Slightly slower tuning: lower multipliers and move exponent closer to 1 (gentler overall speed)
     const speedMultiplier = currentDifficulty === 'infinite' ? 8 : (currentDifficulty === 'impossible' ? 10 : 6);
-    gameSpeed = baseSpeed + Math.pow(progress, 0.9) * speedMultiplier;
+    gameSpeed = baseSpeed + Math.pow(progress, 0.96) * speedMultiplier;
     speedEl.textContent = (gameSpeed / baseSpeed).toFixed(2) + 'x';
 
     // Update player
